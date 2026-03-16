@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Mathle</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; overflow: auto;
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    background: #faf8f5; user-select: none; touch-action: manipulation;
+  }
+
+  @keyframes popIn { 0% { transform: scale(0); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+  @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.12); } 100% { transform: scale(1); } }
+  @keyframes shimmer { 0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.3); } 100% { box-shadow: 0 0 8px 3px rgba(99,102,241,0.15); } }
+  @keyframes scoreUp { 0% { opacity:1; transform: translateY(0) scale(1); } 100% { opacity:0; transform: translateY(-36px) scale(1.3); } }
+  @keyframes scoreDown { 0% { opacity:1; transform: translateY(0) scale(1); } 100% { opacity:0; transform: translateY(-36px) scale(1.3); } }
+  @keyframes shakeX { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+  .container {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: flex-start; min-height: 100vh; padding: 14px 8px;
+  }
+  .title { font-size: 28px; font-weight: 800; letter-spacing: -1.5px; color: #1a1a1a; }
+  .subtitle { font-size: 11px; font-weight: 500; color: #999; letter-spacing: 2px; text-transform: uppercase; margin-top: 1px; }
+
+  .info-row { display: flex; gap: 8px; margin: 10px 0 6px; align-items: stretch; }
+  .stat-box {
+    display: flex; flex-direction: column; align-items: center;
+    background: #f0eded; border-radius: 10px; padding: 5px 14px; min-width: 60px;
+  }
+  .stat-label { font-size: 9px; font-weight: 600; color: #aaa; letter-spacing: 1px; text-transform: uppercase; }
+  .stat-value { font-size: 20px; font-weight: 700; color: #1a1a1a; font-family: 'DM Mono', monospace; }
+  .stat-value.negative { color: #e74c3c; }
+
+  .target-box {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(99,102,241,0.08); border: 1.5px solid rgba(99,102,241,0.2);
+    border-radius: 10px; padding: 5px 18px; min-width: 80px;
+  }
+  .target-label { font-size: 9px; font-weight: 600; color: #6366f1; letter-spacing: 1px; text-transform: uppercase; }
+  .target-value { font-size: 22px; font-weight: 800; color: #6366f1; font-family: 'DM Mono', monospace; }
+
+  .progress-wrap { width: 100%; max-width: 340px; margin: 4px 0 8px; }
+  .progress-bar { height: 6px; background: #e8e4e0; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width 300ms ease, background 300ms ease; }
+
+  .rule-row {
+    display: flex; gap: 14px; justify-content: center; margin-bottom: 6px;
+    font-size: 11px; color: #888; font-weight: 500;
+  }
+  .rule-even { color: #22c55e; }
+  .rule-odd { color: #e74c3c; }
+
+  .board-wrap { position: relative; }
+  .board { display: grid; gap: 3px; background: #cdc1b4; border-radius: 10px; padding: 3px; }
+
+  .cell {
+    border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-family: 'DM Mono', monospace; cursor: pointer;
+    transition: transform 80ms ease; position: relative;
+  }
+  .cell:active { transform: scale(0.93); }
+
+  .cell-number { border: 2px solid transparent; }
+
+  .cell-empty { background: rgba(238,228,218,0.2); border: 2px solid transparent; cursor: default; }
+  .cell-empty.valid-move {
+    background: rgba(99,102,241,0.08); border: 2px dashed rgba(99,102,241,0.3); cursor: pointer;
+  }
+
+  .cell-blank {
+    background: rgba(238,228,218,0.12); border: 2px dotted rgba(180,170,160,0.4);
+    cursor: default;
+  }
+  .cell-blank.valid-move {
+    background: rgba(99,102,241,0.1); border: 2px dashed rgba(99,102,241,0.4); cursor: pointer;
+  }
+  .cell-number.selected { border-color: #6366f1 !important; box-shadow: 0 0 10px rgba(99,102,241,0.4); z-index: 2; }
+  .cell-number.new-tile { animation: popIn 250ms ease; }
+  .cell-number.valid-move { border-color: rgba(99,102,241,0.4) !important; }
+
+  .cell-operation {
+    background: rgba(99,102,241,0.1); border: 2px dashed rgba(99,102,241,0.4);
+    color: #6366f1;
+  }
+  .cell-operation.valid-move {
+    background: rgba(99,102,241,0.22); border-color: rgba(99,102,241,0.7);
+    animation: shimmer 700ms ease infinite alternate;
+  }
+
+  .cell-locked {
+    background: rgba(99,102,241,0.18); border: 2px solid rgba(99,102,241,0.5);
+    color: #6366f1; flex-direction: column; line-height: 1;
+  }
+  .cell-locked.valid-move {
+    background: rgba(99,102,241,0.3); border-color: #6366f1;
+    animation: shimmer 500ms ease infinite alternate;
+  }
+
+  .locked-num { font-weight: 800; color: #1a1a1a; }
+  .locked-op { font-weight: 600; color: #6366f1; }
+
+  .overlay {
+    position: absolute; inset: 0; background: rgba(250,248,245,0.92);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border-radius: 10px; z-index: 10; backdrop-filter: blur(4px);
+  }
+  .overlay-icon { font-size: 40px; margin-bottom: 8px; }
+  .overlay-title { font-size: 24px; font-weight: 800; color: #1a1a1a; margin-bottom: 4px; }
+  .overlay-text {
+    font-size: 12px; color: #777; margin-bottom: 14px; text-align: center;
+    max-width: 260px; line-height: 1.55; padding: 0 12px;
+  }
+  .btn {
+    padding: 8px 24px; border-radius: 8px; border: none; cursor: pointer;
+    font-size: 13px; font-weight: 600; font-family: 'DM Sans', sans-serif;
+  }
+  .btn-primary { background: #1a1a1a; color: #fff; }
+  .btn-secondary { background: transparent; color: #1a1a1a; border: 1px solid #ddd; margin-top: 6px; }
+
+  .float-text {
+    position: absolute; font-weight: 800; pointer-events: none; z-index: 20;
+    font-family: 'DM Mono', monospace;
+  }
+  .float-plus { color: #22c55e; animation: scoreUp 900ms ease forwards; }
+  .float-minus { color: #e74c3c; animation: scoreDown 900ms ease forwards; }
+  .float-result { color: #6366f1; font-size: 13px; animation: scoreUp 1100ms ease forwards; }
+
+  .hint { font-size: 10px; color: #bbb; text-align: center; margin-top: 8px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div class="container" id="app"></div>
+
+<script>
+const SIZE = 5;
+const OP_RATIO = 0.25; // ~25% of tiles are operations
+const OP_SYMBOLS = ['+', '−', '×', '÷'];
+const POINT_TARGET = 15;
+
+// ── Responsive sizing ──
+const vw = Math.min(window.innerWidth - 24, 420);
+const CELL = Math.floor((vw - 3 * (SIZE + 1)) / SIZE);
+const BOARD_PX = CELL * SIZE + 3 * (SIZE + 1);
+
+// ── State ──
+let grid, selected, score, pointTarget, level, gameState;
+let boardEl;
+
+// ── Colors ──
+function numColor(v) {
+  const m = {
+    0: { bg: "#cdc1b4", c: "#776e65" },
+    1: { bg: "#f0eded", c: "#776e65" },
+    2: { bg: "#ede4da", c: "#776e65" },
+    3: { bg: "#f2c88c", c: "#fff" },
+    4: { bg: "#f2b179", c: "#fff" },
+    5: { bg: "#f59563", c: "#fff" },
+    6: { bg: "#f67c5f", c: "#fff" },
+    7: { bg: "#f65e3b", c: "#fff" },
+    8: { bg: "#edcf72", c: "#fff" },
+    9: { bg: "#edc53f", c: "#fff" },
+  };
+  return m[v] || { bg: "#3c3a32", c: "#fff" };
+}
+
+// ── Init ──
+function initGame() {
+  grid = [];
+  for (let r = 0; r < SIZE; r++) {
+    grid[r] = [];
+    for (let c = 0; c < SIZE; c++) {
+      if (Math.random() < OP_RATIO) {
+        grid[r][c] = { type: "operation", op: OP_SYMBOLS[Math.floor(Math.random() * 4)] };
+      } else {
+        grid[r][c] = { type: "number", value: Math.floor(Math.random() * 9) + 1, isNew: false };
+      }
+    }
+  }
+  selected = null;
+  score = 0;
+  level = 1;
+  pointTarget = POINT_TARGET;
+  gameState = "menu";
+  render();
+}
+
+function startGame() {
+  gameState = "playing";
+  render();
+}
+
+function nextLevel() {
+  level++;
+  pointTarget = POINT_TARGET + (level - 1) * 5;
+  score = 0;
+  // Regenerate board
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (Math.random() < OP_RATIO) {
+        grid[r][c] = { type: "operation", op: OP_SYMBOLS[Math.floor(Math.random() * 4)] };
+      } else {
+        grid[r][c] = { type: "number", value: Math.floor(Math.random() * 9) + 1, isNew: false };
+      }
+    }
+  }
+  selected = null;
+  gameState = "playing";
+  render();
+}
+
+function isAdj(r1, c1, r2, c2) {
+  return Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1;
+}
+
+function doOp(a, b, op) {
+  if (op === '+') return a + b;
+  if (op === '−') return Math.abs(a - b);
+  if (op === '×') return a * b;
+  if (op === '÷') {
+    if (b === 0) return null;
+    return Math.round(a / b);
+  }
+  return null;
+}
+
+// ── Tile replacement ──
+function replaceWithDigits(r, c, result) {
+  // Zero creates a persistent blank space
+  if (result === 0) {
+    grid[r][c] = { type: "blank" };
+    return;
+  }
+
+  const digits = String(result).split('').map(Number);
+
+  // Place first digit at the operation cell itself
+  // If digit is 0, make it a blank instead of a number tile
+  if (digits[0] === 0) {
+    grid[r][c] = { type: "blank" };
+  } else {
+    grid[r][c] = { type: "number", value: digits[0], isNew: true };
+  }
+
+  // Place remaining digits in nearest empty/blank-adjacent spots
+  for (let i = 1; i < digits.length; i++) {
+    let placed = false;
+    for (let dist = 1; dist <= SIZE && !placed; dist++) {
+      const candidates = [];
+      for (let dr = -dist; dr <= dist; dr++) {
+        for (let dc = -dist; dc <= dist; dc++) {
+          if (Math.abs(dr) + Math.abs(dc) > dist) continue;
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE &&
+              (grid[nr][nc].type === "empty" || grid[nr][nc].type === "blank")) {
+            candidates.push([nr, nc]);
+          }
+        }
+      }
+      if (candidates.length) {
+        const [pr, pc] = candidates[Math.floor(Math.random() * candidates.length)];
+        if (digits[i] === 0) {
+          grid[pr][pc] = { type: "blank" };
+        } else {
+          grid[pr][pc] = { type: "number", value: digits[i], isNew: true };
+        }
+        placed = true;
+      }
+    }
+    // If no empty/blank spot, overwrite a random number tile
+    if (!placed) {
+      const numTiles = [];
+      for (let rr = 0; rr < SIZE; rr++)
+        for (let cc = 0; cc < SIZE; cc++)
+          if (grid[rr][cc].type === "number" && !(rr === r && cc === c))
+            numTiles.push([rr, cc]);
+      if (numTiles.length) {
+        const [pr, pc] = numTiles[Math.floor(Math.random() * numTiles.length)];
+        if (digits[i] === 0) {
+          grid[pr][pc] = { type: "blank" };
+        } else {
+          grid[pr][pc] = { type: "number", value: digits[i], isNew: true };
+        }
+      }
+    }
+  }
+}
+
+// Fill temporary empty cells with new numbers/ops. "blank" cells from 0 results persist.
+function fillEmptyCells() {
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (grid[r][c].type === "empty") {
+        if (Math.random() < OP_RATIO) {
+          grid[r][c] = { type: "operation", op: OP_SYMBOLS[Math.floor(Math.random() * 4)] };
+        } else {
+          grid[r][c] = { type: "number", value: Math.floor(Math.random() * 9) + 1, isNew: true };
+        }
+      }
+    }
+  }
+}
+
+// ── Click handling ──
+function handleClick(r, c) {
+  if (gameState !== "playing") return;
+  const cell = grid[r][c];
+
+  if (selected) {
+    const sr = selected.row, sc = selected.col;
+    const sel = grid[sr][sc];
+
+    // Deselect
+    if (sr === r && sc === c) {
+      selected = null;
+      render(); return;
+    }
+
+    // Must be adjacent for everything
+    if (!isAdj(sr, sc, r, c)) {
+      // If clicking another number, select it instead
+      if (cell.type === "number") {
+        selected = { row: r, col: c };
+        render(); return;
+      }
+      selected = null;
+      render(); return;
+    }
+
+    // Number → empty/blank: move into it
+    if ((cell.type === "empty" || cell.type === "blank") && sel.type === "number") {
+      grid[r][c] = { ...sel, isNew: false };
+      if (cell.type === "blank") {
+        // Moving into a blank: leave a blank behind (blanks persist)
+        grid[sr][sc] = { type: "blank" };
+      } else {
+        // Moving into a temporary empty: leave empty (will auto-fill)
+        grid[sr][sc] = { type: "empty" };
+        fillEmptyCells();
+      }
+      selected = null;
+      render(); return;
+    }
+
+    // Number → operation: lock it
+    if (cell.type === "operation" && sel.type === "number") {
+      grid[r][c] = { type: "locked", op: cell.op, value: sel.value };
+      grid[sr][sc] = { type: "empty" };
+      fillEmptyCells();
+      selected = null;
+      render(); return;
+    }
+
+    // Number → locked: complete the operation
+    if (cell.type === "locked" && sel.type === "number") {
+      const result = doOp(cell.value, sel.value, cell.op);
+      const opSymbol = cell.op;
+      const a = cell.value, b = sel.value;
+
+      grid[sr][sc] = { type: "empty" };
+
+      if (result !== null && result !== undefined && result >= 0) {
+        const absResult = Math.abs(Math.round(result));
+        const isEven = absResult % 2 === 0;
+
+        if (isEven) {
+          score++;
+          showFloat(r, c, `+1`, "float-plus", 18);
+        } else {
+          score--;
+          showFloat(r, c, `−1`, "float-minus", 18);
+        }
+
+        showFloat(r, c, `${a} ${opSymbol} ${b} = ${absResult}`, "float-result", 13, -24);
+
+        replaceWithDigits(r, c, absResult);
+      } else {
+        // Bad division or error — lose a point
+        score--;
+        showFloat(r, c, `−1`, "float-minus", 18);
+        grid[r][c] = { type: "operation", op: opSymbol };
+      }
+
+      selected = null;
+      fillEmptyCells();
+
+      // Check win
+      if (score >= pointTarget) {
+        setTimeout(() => { gameState = "won"; render(); }, 400);
+      }
+
+      render(); return;
+    }
+
+    // Number → number: swap select
+    if (cell.type === "number") {
+      selected = { row: r, col: c };
+      render(); return;
+    }
+
+    selected = null;
+    render(); return;
+  }
+
+  // Nothing selected
+  if (cell.type === "number") {
+    selected = { row: r, col: c };
+    render();
+  }
+}
+
+// ── Valid moves ──
+function getValidMoves() {
+  if (!selected) return new Set();
+  const sr = selected.row, sc = selected.col;
+  const moves = new Set();
+  for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+    const nr = sr + dr, nc = sc + dc;
+    if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE) {
+      const t = grid[nr][nc].type;
+      if (t === "empty" || t === "blank" || t === "operation" || t === "locked") {
+        moves.add(`${nr},${nc}`);
+      }
+    }
+  }
+  return moves;
+}
+
+// ── Floats ──
+function showFloat(r, c, text, cls, size, offsetY = 0) {
+  if (!boardEl) return;
+  const el = document.createElement("div");
+  el.className = `float-text ${cls}`;
+  el.textContent = text;
+  el.style.fontSize = size + "px";
+  el.style.left = (3 + c * (CELL + 3) + CELL / 2 - 20) + "px";
+  el.style.top = (3 + r * (CELL + 3) + offsetY) + "px";
+  boardEl.appendChild(el);
+  setTimeout(() => el.remove(), 1100);
+}
+
+// ── Render ──
+function render() {
+  const app = document.getElementById("app");
+  const valid = getValidMoves();
+  let h = "";
+
+  h += `<div class="title">Mathle</div>`;
+  h += `<div class="subtitle">even gains · odd drains</div>`;
+
+  h += `<div class="info-row">
+    <div class="stat-box">
+      <span class="stat-label">Score</span>
+      <span class="stat-value ${score < 0 ? 'negative' : ''}">${score}</span>
+    </div>
+    <div class="target-box">
+      <span class="target-label">Goal</span>
+      <span class="target-value">${pointTarget}</span>
+    </div>
+    <div class="stat-box">
+      <span class="stat-label">Level</span>
+      <span class="stat-value">${level}</span>
+    </div>
+  </div>`;
+
+  // Progress bar
+  const pct = Math.max(0, Math.min(100, (score / pointTarget) * 100));
+  const barColor = score < 0 ? '#e74c3c' : score >= pointTarget ? '#22c55e' : '#6366f1';
+  h += `<div class="progress-wrap" style="max-width:${BOARD_PX}px;">
+    <div class="progress-bar">
+      <div class="progress-fill" style="width:${pct}%;background:${barColor};"></div>
+    </div>
+  </div>`;
+
+  // Rules reminder
+  h += `<div class="rule-row">
+    <span class="rule-even">Even result → +1</span>
+    <span class="rule-odd">Odd result → −1</span>
+  </div>`;
+
+  // Board
+  h += `<div class="board-wrap"><div class="board" id="board" style="grid-template-columns:repeat(${SIZE},${CELL}px);grid-template-rows:repeat(${SIZE},${CELL}px);width:${BOARD_PX}px;">`;
+
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = grid[r][c];
+      const isValid = valid.has(`${r},${c}`);
+      const isSel = selected && selected.row === r && selected.col === c;
+
+      if (cell.type === "number") {
+        const col = numColor(cell.value);
+        h += `<div class="cell cell-number ${isSel ? 'selected' : ''} ${cell.isNew ? 'new-tile' : ''} ${isValid ? 'valid-move' : ''}"
+          style="width:${CELL}px;height:${CELL}px;background:${col.bg};color:${col.c};font-size:${Math.floor(CELL * 0.48)}px;"
+          onclick="handleClick(${r},${c})">${cell.value}</div>`;
+      }
+      else if (cell.type === "operation") {
+        h += `<div class="cell cell-operation ${isValid ? 'valid-move' : ''}"
+          style="width:${CELL}px;height:${CELL}px;font-size:${Math.floor(CELL * 0.45)}px;"
+          onclick="handleClick(${r},${c})">${cell.op}</div>`;
+      }
+      else if (cell.type === "locked") {
+        h += `<div class="cell cell-locked ${isValid ? 'valid-move' : ''}"
+          style="width:${CELL}px;height:${CELL}px;"
+          onclick="handleClick(${r},${c})">
+          <span class="locked-num" style="font-size:${Math.floor(CELL * 0.34)}px;">${cell.value}</span>
+          <span class="locked-op" style="font-size:${Math.floor(CELL * 0.2)}px;">${cell.op} ?</span>
+        </div>`;
+      }
+      else if (cell.type === "blank") {
+        // Persistent blank from a 0 result — can move into
+        h += `<div class="cell cell-blank ${isValid ? 'valid-move' : ''}"
+          style="width:${CELL}px;height:${CELL}px;"
+          onclick="handleClick(${r},${c})"></div>`;
+      }
+      else {
+        // Temporary empty (gets auto-filled)
+        h += `<div class="cell cell-empty"
+          style="width:${CELL}px;height:${CELL}px;"></div>`;
+      }
+    }
+  }
+  h += `</div>`; // board
+
+  // Menu overlay
+  if (gameState === "menu") {
+    h += `<div class="overlay">
+      <div class="overlay-icon">🧮</div>
+      <div class="overlay-title">Mathle</div>
+      <div class="overlay-text">
+        Tap a <strong>number</strong>, then tap an adjacent <span style="color:#6366f1;font-weight:600">operation</span> to lock it in.
+        Tap another adjacent number to complete the math.<br><br>
+        <span style="color:#22c55e;font-weight:600">Even result</span> → +1 point &nbsp;
+        <span style="color:#e74c3c;font-weight:600">Odd result</span> → −1 point<br>
+        <strong>Result of 0</strong> → opens a space to move through!
+      </div>
+      <button class="btn btn-primary" onclick="startGame()">Start Game</button>
+    </div>`;
+  }
+
+  // Win overlay
+  if (gameState === "won") {
+    h += `<div class="overlay">
+      <div class="overlay-icon">🎉</div>
+      <div class="overlay-title">Level ${level} Complete!</div>
+      <div class="overlay-text">
+        Reached ${pointTarget} points!<br>Ready for a tougher challenge?
+      </div>
+      <button class="btn btn-primary" onclick="nextLevel()">Next Level →</button>
+      <button class="btn btn-secondary" onclick="level=0;score=0;initGame();startGame();">Restart</button>
+    </div>`;
+  }
+
+  h += `</div>`; // board-wrap
+
+  h += `<div class="hint">
+    Tap number → adjacent <strong style="color:#6366f1">op</strong> → adjacent number to combine<br>
+    Results split into digits · Zero = open space to move through
+  </div>`;
+
+  app.innerHTML = h;
+  boardEl = document.getElementById("board");
+
+  // Clear isNew
+  setTimeout(() => {
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++)
+        if (grid[r][c].isNew) grid[r][c].isNew = false;
+  }, 300);
+}
+
+initGame();
+</script>
+</body>
+</html>
