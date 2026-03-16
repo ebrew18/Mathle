@@ -1,4 +1,4 @@
-# Mathle
+# Mod2
 A math puzzle browser game
 Combine numbers with operations to score points.
 How to Play
@@ -15,6 +15,6 @@ Engineer zeros with subtraction (same number minus itself) to open movement lane
 Use blank spaces to reposition tiles into better setups
 Think ahead — every operation changes the board
 Play
-Hosted at: https://ebrew18.github.io/mathle
+Hosted at: https://ebrew18.github.io/mod2
 Tech
 Single self-contained HTML file. No dependencies, no build step. Works on mobile and desktop.
